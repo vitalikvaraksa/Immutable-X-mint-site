@@ -8,7 +8,7 @@ export const connectWallet = async () => {
   if (window.ethereum) {
     try {
       const chain = await window.ethereum.request({ method: 'eth_chainId' })
-      if (parseInt(chain, 16) == chainId) {
+      if (parseInt(chain, 16) == parseInt(chainId, 16)) {
         const addressArray = await window.ethereum.request({
           method: 'eth_requestAccounts',
         })
@@ -88,9 +88,9 @@ export const getContract = (walletAddress) => {
 
   try {
       if(walletAddress === null || walletAddress === '' || walletAddress === undefined) {
-          if(parseInt(chainId) == 3) 
+          if(parseInt(chainId, 16) == 3) 
               contract = new ethers.Contract(contractAddress, contractABI, ethers.getDefaultProvider('ropsten'))
-          if(parseInt(chainId) == 1) 
+          if(parseInt(chainId, 16) == 1) 
               contract = new ethers.Contract(contractAddress, contractABI, ethers.getDefaultProvider('mainnet'))
       } else {
           const provider = new ethers.providers.Web3Provider(window.ethereum);
