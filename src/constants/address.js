@@ -1,6 +1,6 @@
 // export const contractAddress = "0x1a755c8001cAC551a0eF476AB6b71166D84a0b78";
 export const contractAddress = "0x11e71be65Ca62A5083A4a8117eE7CE9E2dF1184B";
-export const chainId = 3; //Rinkeby Testnet
+export const chainId = "0x3"; //Rinkeby Testnet
 
 // Mainnet
 // export const linkAddress = 'https://link.x.immutable.com';

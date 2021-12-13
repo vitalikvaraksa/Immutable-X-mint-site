@@ -24,13 +24,23 @@ export const connectWallet = async () => {
           }
         }
       } else {
-        window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId:chainId }],
-        })
-        return {
-          address: "",
-          status: "Connect your wallet account to the site.",
+          window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId:chainId }],
+          })
+          const addressArray = await window.ethereum.request({
+            method: 'eth_requestAccounts',
+          })
+          if (addressArray.length > 0) {
+            return {
+              address: addressArray[0],
+              status: "You can mint new pack now.",
+            }
+          } else {
+            return {
+              address: "",
+              status: "Connect your wallet account to the site.",
+            }
         }
       }
       
