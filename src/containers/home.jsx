@@ -7,6 +7,8 @@ import { linkAddress, apiAddress } from "../constants/address";
 import { Navigation } from "../components/navigation";
 import { Main } from "../components/main";
 import { Footer } from "../components/footer";
+import { whiteList } from "../constants/whitelist";
+
 import 'react-toastify/dist/ReactToastify.css';
 
 import { ImmutableXClient, Link } from '@imtbl/imx-sdk';
@@ -17,7 +19,7 @@ const Home = () => {
   const [status, setStatus] = useState(null);
   const [loading, setMintLoading] = useState(false);
   const [tokenPrice, setTokenPrice] = useState(null)
-
+  const [addrWhiteList, setAddrWhiteList] = useState(null);
   const [totalSupply, setTotalSupply] = useState(0);
   const [maxTokens, setMaxTokens] = useState(0);
   const [maxTokenPurchase, setMaxTokenPurchase] = useState(13);
@@ -26,6 +28,14 @@ const Home = () => {
   const [client, setClient]  = useState(null);
   const link = new Link(linkAddress);
   
+
+
+  useEffect(() => {
+    let whitelist = whiteList.map(addr => addr.toString().toLowerCase());
+    setAddrWhiteList(whitelist)
+  }, []);
+
+
   useEffect(async () => {
     setClient(await ImmutableXClient.build({ publicApiUrl: apiAddress }))
     const { address, status } = await getCurrentWalletConnected()
@@ -80,7 +90,7 @@ const Home = () => {
   return (
     <div>
       <Navigation onClickDisconnectWallet={onClickDisconnectWallet} onClickConnectWallet={onClickConnectWallet} walletAddress={walletAddress}  />
-      <Main imx_link={link} imx_client={client} loading={loading} setMintLoading={setMintLoading} setStatus={setStatus} walletAddress={walletAddress} tokenPrice={tokenPrice} />
+      <Main imx_link={link} imx_client={client} loading={loading} setMintLoading={setMintLoading} setStatus={setStatus} walletAddress={walletAddress} tokenPrice={tokenPrice} addrWhiteList={addrWhiteList} />
       <Footer />
       <ToastContainer />
     </div>

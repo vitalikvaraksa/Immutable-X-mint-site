@@ -4,16 +4,30 @@ import { AlchemyProvider } from '@ethersproject/providers';
 import { Wallet } from '@ethersproject/wallet';
 import { Link, ImmutableXClient, ImmutableMethodResults, MintableERC721TokenType, ERC721TokenType } from '@imtbl/imx-sdk';
 import { getContract } from '../util/interact';
-import { contractAddress, minterPrivateKey, starkContractAddress, registrationContractAddress, apiAddress } from '../constants/address';
-
+import { contractAddress, starkContractAddress, registrationContractAddress, apiAddress } from '../constants/address';
 
 export const Mint = (props) => {
-
-  const {imx_link, imx_client, loading, setMintLoading, setStatus, walletAddress, tokenPrice} = props
+  const {imx_link, imx_client, loading, setMintLoading, setStatus, walletAddress, tokenPrice, addrWhiteList} = props
   const [mintCount, setMintCount] = useState('');
+  const [isWhiteListed, setIsWhiteListed] = useState(false)
+
+  const offset = (new Date().getTimezoneOffset() - 300 ) * 60 * 1000
+  const pubsaleTime = new Date("December 15, 2021 23:59:00").getTime() - offset
+  const presaleTime = new Date("December 15, 2021 14:00:00").getTime() - offset
+
+
+
+  useEffect(() => {
+    let timerID = setInterval( () => {
+      let curTime = new Date().getTime()
+      if(curTime>=presaleTime && curTime<pubsaleTime && Array.isArray(addrWhiteList) && walletAddress != null) {
+        addrWhiteList.includes(walletAddress.toString().toLowerCase()) ? setIsWhiteListed(true) : setIsWhiteListed(false)
+      }
+    }, 1000*60 );
+    return () => clearInterval(timerID) 
+   });
 
   function onChangeCountInput(e) {
-
     if (!e.target.validity.patternMismatch) {
       if(e.target.value == "") {
         setMintCount(0)
@@ -29,14 +43,27 @@ export const Mint = (props) => {
   }
   
   async function onMint() {
+
     let occupied_list, total_list, available_list, mint_list
     let linked_wallet
+    let curTime = new Date().getTime()
+   
     if (!walletAddress) {
-        setStatus('Please connect your Wallet')
+      setStatus('Please connect your Wallet')
+      return
+    }
+    // Check mint is available
+    if(curTime < presaleTime) {
+      setStatus('Please wait for the private sale time')
+      return
+    }
+    if(curTime>= presaleTime && curTime < pubsaleTime) {
+      if(!isWhiteListed)
+        setStatus('Please wait for the public sale time')
         return
     }
-    const contract = getContract(walletAddress)
 
+    const contract = getContract(walletAddress)
     // connect to Immutable X Platform
     try {
       linked_wallet = await imx_link.setup({});
@@ -51,7 +78,7 @@ export const Mint = (props) => {
       publicApiUrl: apiAddress,
       starkContractAddress: starkContractAddress,
       registrationContractAddress: registrationContractAddress,
-      signer: new Wallet(minterPrivateKey).connect(provider),
+      signer: new Wallet(process.env.REACT_APP_MINTER_KEY).connect(provider),
     });
 
     // Get already Occupied Token List from contract
@@ -137,7 +164,12 @@ export const Mint = (props) => {
         </button>
       }
 
-      <p> *YOUR WALLET IS <span style={{color:'#D43C3A'}}> WHITELISTED! </span> </p>
+      {
+        isWhiteListed ?
+        <p> *YOUR WALLET IS <span style={{color:'#D43C3A'}}> WHITELISTED! </span> </p> 
+        :
+        ''
+      }
 
     </div>
   );
