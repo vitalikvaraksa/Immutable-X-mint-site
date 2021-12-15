@@ -23,6 +23,9 @@ export const Footer = (props) => {
           </video>
         </div>
       </div>
+      <div className="row">
+        <p className="info">{'This pass grants you access to our soon to be released beta, and may hold no intrinsic value after purchase'}</p>
+      </div>
     </div>
   )
 }

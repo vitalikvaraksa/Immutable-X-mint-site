@@ -1,4 +1,3 @@
-// export const contractAddress = "0xbAD5217f2C49C0C3E05080F3A5f1BFA067FE61f2";
 export const contractAddress = "0x8D6a34A4BBa7165611f9cbcc04eE2ddF2c0dCf49";
 export const chainId = "0x3"; //Rinkeby Testnet
 

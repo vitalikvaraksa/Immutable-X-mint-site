@@ -180,7 +180,7 @@ p.title {
   width: 100%;
   background-color: #D43C3A;
   border-radius: 0;
-  font: normal normal medium 18px/24px TT_Lakes !important;
+  font: normal normal medium 18px/24px  !important;
   letter-spacing: 0px;
   color: #E6E6E6;
   margin-bottom: 30px;
@@ -196,6 +196,12 @@ p.title {
 
 #footer .tier {
   width: 100%;
+}
+
+#footer .info {
+  padding-top: 70px;
+  font:normal normal medium 12px/16px !important;
+  font-family: Montserrat;
 }
 
 
