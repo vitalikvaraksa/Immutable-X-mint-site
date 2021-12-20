@@ -2,9 +2,9 @@ import {useState, useEffect} from 'react'
 import { ethers, BigNumber } from 'ethers'
 import { AlchemyProvider } from '@ethersproject/providers';
 import { Wallet } from '@ethersproject/wallet';
-import { Link, ImmutableXClient, ImmutableMethodResults, MintableERC721TokenType, ERC721TokenType } from '@imtbl/imx-sdk';
+import { Link, ImmutableXClient, ImmutableMethodResults, MintableERC721TokenType, ERC721TokenType, isHexPrefixed, ETHTokenType  } from '@imtbl/imx-sdk';
 import { getContract } from '../util/interact';
-import { contractAddress, starkContractAddress, registrationContractAddress, apiAddress } from '../constants/address';
+import { contractAddress, starkContractAddress, registrationContractAddress, apiAddress, chainId, deployerAddress } from '../constants/address';
 
 export const Mint = (props) => {
   const {imx_link, imx_client, loading, setMintLoading, setStatus, walletAddress, tokenPrice, addrWhiteList} = props
@@ -12,19 +12,14 @@ export const Mint = (props) => {
   const [isWhiteListed, setIsWhiteListed] = useState(false)
 
   const offset = (new Date().getTimezoneOffset() - 300 ) * 60 * 1000
-  const pubsaleTime = new Date("December 15, 2021 23:59:00").getTime() - offset
-  const presaleTime = new Date("December 15, 2021 14:00:00").getTime() - offset
-
-
+  const pubsaleTime = new Date("December 16, 2021 23:59:00").getTime() - offset
+  const presaleTime = new Date("December 16, 2021 14:00:00").getTime() - offset
 
   useEffect(() => {
-    let timerID = setInterval( () => {
       let curTime = new Date().getTime()
       if(curTime>=presaleTime && curTime<pubsaleTime && Array.isArray(addrWhiteList) && walletAddress != null) {
         addrWhiteList.includes(walletAddress.toString().toLowerCase()) ? setIsWhiteListed(true) : setIsWhiteListed(false)
       }
-    }, 1000*60 );
-    return () => clearInterval(timerID) 
    });
 
   function onChangeCountInput(e) {
@@ -44,8 +39,8 @@ export const Mint = (props) => {
   
   async function onMint() {
 
-    let occupied_list, total_list, available_list, mint_list
-    let linked_wallet
+    let total_list, available_list, mint_list, occupied_list = []
+    let linked_wallet, provider
     let curTime = new Date().getTime()
    
     if (!walletAddress) {
@@ -57,40 +52,98 @@ export const Mint = (props) => {
       setStatus('Please wait for the private sale time')
       return
     }
+    // Check user is whitelisted for pre-sale
     if(curTime>= presaleTime && curTime < pubsaleTime) {
-      if(!isWhiteListed)
-        setStatus('Please wait for the public sale time')
-        return
+      if(curTime>=presaleTime && curTime<pubsaleTime && Array.isArray(addrWhiteList) && walletAddress != null) {
+        if(!addrWhiteList.includes(walletAddress.toString().toLowerCase())) {
+          setStatus('Please wait for the public sale time')
+          return
+        } else {
+          setIsWhiteListed(true)
+        }
+      }
     }
 
-    const contract = getContract(walletAddress)
-    // connect to Immutable X Platform
+    setMintLoading(true)
+
+    // Connect to Immutable-X to register user
     try {
       linked_wallet = await imx_link.setup({});
     } catch(err) {
       console.log(err)
+      setMintLoading(false)
       setStatus("Wallet connection failed")
       return
     }
 
-    const provider = new AlchemyProvider('ropsten', '');
+    // Get wallet balance 
+    let imx_balance_wei = await imx_client.getBalances({ user: linked_wallet.address });
+    let imx_balance_eth = ethers.utils.formatEther(imx_balance_wei.imx);
+    if (chainId == '0x3') {
+      provider = ethers.getDefaultProvider('ropsten')
+    } else if( chainId == '0x1') {
+      provider = ethers.getDefaultProvider('mainnet')
+    }
+    let eth_balance_wei = await provider.getBalance(linked_wallet.address);
+    let eth_balance_eth = ethers.utils.formatEther(eth_balance_wei);
+
+    // Deposit ETH from wallet to Immutable-X.
+    if(imx_balance_eth < (tokenPrice*mintCount/100000)) {
+      let deposit_balance = (tokenPrice*mintCount/100000) - imx_balance_eth
+      try {
+        await imx_link.transfer([{
+          amount: deposit_balance.toString(),
+          type: ETHTokenType.ETH,
+          toAddress: linked_wallet.address.toString(),
+        }])
+      } catch(err) {
+        console.log(err)
+        setStatus("Transaction failed because you have insufficient funds in the wallet")
+        return
+      }
+    }
+
+    // Pay IMX token for mint NFT on immutable-x
+    try {
+      await imx_link.transfer([{
+        amount: (tokenPrice*mintCount/100000).toString(),
+        type: ETHTokenType.ETH,
+        toAddress: deployerAddress,
+      }])
+    } catch(err) {
+      console.log(err)
+      setStatus("Transaction failed because you have insufficient funds on Immutable-X")
+      return
+    }
+
+    // Get Minter to mint NFT on Immutable-X
+    let alchemy_provider
+    if (chainId == '0x3') {
+      alchemy_provider = new AlchemyProvider('ropsten', '');
+    } else if( chainId == '0x1') {
+      alchemy_provider = new AlchemyProvider('mainnet', '');
+    }
     const minter = await ImmutableXClient.build({
       publicApiUrl: apiAddress,
       starkContractAddress: starkContractAddress,
       registrationContractAddress: registrationContractAddress,
-      signer: new Wallet(process.env.REACT_APP_MINTER_KEY).connect(provider),
+      signer: new Wallet(process.env.REACT_APP_MINTER_KEY).connect(alchemy_provider),
     });
 
-    // Get already Occupied Token List from contract
+    // Get already minted Token List 
     try {
-      let ol = await contract.occupiedList()
-      occupied_list = ol.map( bn => BigNumber.from(bn).toNumber() );
+      let assetCursor;
+      do {
+        let assets = [];
+        let assetsRequest = await imx_client.getAssets({ collection: contractAddress, cursor: assetCursor })
+        assets = assets.concat(assetsRequest.result);
+        assets.map( asset => occupied_list.push(parseInt(asset.token_id)) )
+        assetCursor = assetsRequest.cursor;
+      } while (assetCursor);
     } catch (err) {
-      let errorContainer =  (err.error && err.error.message)  ? err.error.message : ''
-      let errorBody = errorContainer.substr(errorContainer.indexOf(":")+1)
-      let status = "Transaction failed because you have insufficient funds or sales not started"
-      errorContainer.indexOf("execution reverted") === -1 ? setStatus(status) : setStatus(errorBody)
-      setMintLoading(false)
+        setStatus("Immutable-X interaction failed.")
+        setMintLoading(false)
+        return
     }
 
     // Get available mint id 
@@ -100,48 +153,32 @@ export const Mint = (props) => {
     let shuffled = available_list.sort(function(){return .5 - Math.random()});
     mint_list = shuffled.slice(0, mintCount);
 
-    // start minting
-    setMintLoading(true)
-    try {
-      let tx = await contract.buy(mint_list, { value: BigNumber.from(1e9).mul(BigNumber.from(1e4)).mul(tokenPrice).mul(mintCount), from: linked_wallet.address })
-      let res = await tx.wait()
-      if (res.transactionHash) {
-        // mint token on Immutable X Platform
-        const tokens = mint_list.map(i => ({
-          id: i.toString(),
-          blueprint: 'https://gateway.pinata.cloud/ipfs/QmXdA5Aef18rYkpWd3ngcpyqzkiEguHSntMxvbbzNcfx77',
-        }))
+    // Mint NFT token on Immutable-X
+    const tokens = mint_list.map(i => ({
+      id: i.toString(),
+      blueprint: 'https://gateway.pinata.cloud/ipfs/QmTxCsWuHc6fqc6mPbc2AFEXeYhwBREUD9fcYrKmgEi2me',
+    }))
 
-        const payload = [
+    const payload = [
+      {
+        contractAddress: contractAddress, // NOTE: a mintable token contract is not the same as regular erc token contract
+        users: [
           {
-            contractAddress: contractAddress, // NOTE: a mintable token contract is not the same as regular erc token contract
-            users: [
-              {
-                etherKey: linked_wallet.address.toLowerCase(),
-                tokens,
-              },
-            ],
+            etherKey: linked_wallet.address.toLowerCase(),
+            tokens,
           },
-        ];
-      
-        try { 
-          const result = await minter.mintV2(payload); 
-          setStatus(`You minted ${mintCount} MOBP Successfully`)
-          setMintLoading(false)
-        } catch(err) {
-          console.log(err)
-          setStatus("Mint on Immutable X failed")
-          setMintLoading(false)
-        }
-      }
+        ],
+      },
+    ];
+  
+    try { 
+      const result = await minter.mintV2(payload); 
+      setStatus(`You minted ${mintCount} MOBP Successfully`)
       setMintLoading(false)
-    } catch (err) {
+    } catch(err) {
       console.log(err)
-        let errorContainer =  (err.error && err.error.message)  ? err.error.message : ''
-        let errorBody = errorContainer.substr(errorContainer.indexOf(":")+1)
-        let status = "Transaction failed because you have insufficient funds or sales not started"
-        errorContainer.indexOf("execution reverted") === -1 ? setStatus(status) : setStatus(errorBody)
-        setMintLoading(false)
+      setStatus("Mint on Immutable X failed")
+      setMintLoading(false)
     }
 
   }

@@ -1,4 +1,7 @@
+// export const contractAddress = "0xd5517e37a62e453a3a6144da8f63c3c563d4fc51"; // mainnet
 export const contractAddress = "0x8D6a34A4BBa7165611f9cbcc04eE2ddF2c0dCf49";
+export const deployerAddress = "0xDB1FE3c4B29FA6451B2FcEeA1644F0d7697F5542";
+
 export const chainId = "0x3"; //Rinkeby Testnet
 
 // Mainnet
