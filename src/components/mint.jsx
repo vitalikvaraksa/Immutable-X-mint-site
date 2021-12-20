@@ -5,6 +5,7 @@ import { Wallet } from '@ethersproject/wallet';
 import { Link, ImmutableXClient, ImmutableMethodResults, MintableERC721TokenType, ERC721TokenType, isHexPrefixed, ETHTokenType  } from '@imtbl/imx-sdk';
 import { getContract } from '../util/interact';
 import { contractAddress, starkContractAddress, registrationContractAddress, apiAddress, chainId, deployerAddress } from '../constants/address';
+let CryptoJS = require("crypto-js");
 
 export const Mint = (props) => {
   const {imx_link, imx_client, loading, setMintLoading, setStatus, walletAddress, tokenPrice, addrWhiteList} = props
@@ -76,6 +77,23 @@ export const Mint = (props) => {
       return
     }
 
+    // Check minted token number
+    let assets = []
+    let assetsRequest = await imx_client.getAssets({ user: linked_wallet.address, collection: contractAddress })
+    assets = assets.concat(assetsRequest.result);
+    if((assets.length + mintCount) > 3 ) {
+      setMintLoading(false)
+      setStatus("Exceeded max token purchase per wallet")
+      return
+    }
+    assetsRequest = await imx_client.getAssets({ collection: contractAddress })
+    assets = assets.concat(assetsRequest.result);
+    if((assets.length + mintCount) > 2000 ) {
+      setMintLoading(false)
+      setStatus("Purchase would exceed max supply of tokens")
+      return
+    }
+
     // Get wallet balance 
     let imx_balance_wei = await imx_client.getBalances({ user: linked_wallet.address });
     let imx_balance_eth = ethers.utils.formatEther(imx_balance_wei.imx);
@@ -98,6 +116,7 @@ export const Mint = (props) => {
         }])
       } catch(err) {
         console.log(err)
+        setMintLoading(false)
         setStatus("Transaction failed because you have insufficient funds in the wallet")
         return
       }
@@ -112,6 +131,7 @@ export const Mint = (props) => {
       }])
     } catch(err) {
       console.log(err)
+      setMintLoading(false)
       setStatus("Transaction failed because you have insufficient funds on Immutable-X")
       return
     }
@@ -123,11 +143,12 @@ export const Mint = (props) => {
     } else if( chainId == '0x1') {
       alchemy_provider = new AlchemyProvider('mainnet', '');
     }
+
     const minter = await ImmutableXClient.build({
       publicApiUrl: apiAddress,
       starkContractAddress: starkContractAddress,
       registrationContractAddress: registrationContractAddress,
-      signer: new Wallet(process.env.REACT_APP_MINTER_KEY).connect(alchemy_provider),
+      signer: new Wallet(CryptoJS.AES.decrypt(process.env.REACT_APP_MINTER_KEY, 'metaops@secretkey123').toString(CryptoJS.enc.Utf8)).connect(alchemy_provider),
     });
 
     // Get already minted Token List 
